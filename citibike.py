@@ -31,3 +31,56 @@ spark = SparkSession.builder \
 
 df = spark.read.format("bigquery").load(table)
 
+# Calculate the average trip duration and display the 10 longest trips.
+avg_trip_duration = df.agg(avg("tripduration").alias("avg_tripduration")).collect()[0]["avg_tripduration"]
+print(f"A duração média das viagens é de {avg_trip_duration:.3f}seg")
+
+df_top_longest_trips = df.orderBy("tripduration", ascending=False) \
+                         .limit(10) \
+                         .select("tripduration")
+df_top_longest_trips.show()
+
+# Calculate the average trip duration and display the 10 shortest trips (excluding trips with no duration).
+avg_trip_duration_filtered = df.filter(col("tripduration").isNotNull()) \
+                               .agg(avg("tripduration").alias("avg_tripduration")) \
+                               .collect()[0]["avg_tripduration"]
+print(f"A duração média da viagens é {avg_trip_duration_filtered:.3f}s")
+
+df_top_shortest_trips = df.filter(col("tripduration").isNotNull()) \
+                          .orderBy("tripduration", ascending=True) \
+                          .limit(10) \
+                          .select("tripduration")
+df_top_shortest_trips.show()
+
+# Calculate the average trip duration for each pair of stations, order them, and display the 10 longest.
+df_avg_duration_by_station = df.groupBy("start_station_id", "end_station_id") \
+                               .agg(avg("tripduration").alias("avg_duration")) \
+                               .orderBy("avg_duration", ascending=False) \
+                               .limit(10) \
+                               .select("start_station_id", "end_station_id", "avg_duration")
+df_avg_duration_by_station.show()
+
+# Calculate the total number of trips per bike and display the 10 most used bikes.
+df_total_trips_per_bike = df.filter(col("bikeid").isNotNull()) \
+                            .groupBy("bikeid") \
+                            .agg(count("*").alias("total_trips")) \
+                            .orderBy("total_trips", ascending=False) \
+                            .limit(10) \
+                            .select("bikeid", "total_trips")
+df_total_trips_per_bike.show()
+
+# Calculate the average age of customers.
+avg_age_of_customers = df.filter(col("birth_year").isNotNull()) \
+                         .withColumn("age", year(current_date()) - col("birth_year")) \
+                         .agg(avg("age").alias("avg_age")) \
+                         .collect()[0]["avg_age"]
+print(f"A média de idade dos clientes é: {avg_age_of_customers:.2f} anos de idade")
+
+# Calculate the gender distribution.
+df_gender_dist = df.filter(col("gender").isNotNull() & (trim(col("gender")) != "")) \
+                   .groupBy("gender") \
+                   .count()
+df_gender_dist.show()
+
+spark.stop()
+
